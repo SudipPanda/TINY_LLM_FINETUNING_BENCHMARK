@@ -1,0 +1,33 @@
+project:
+  name: "tinyforge-qwen05b-sql"
+  seed: 42
+  output_dir: "runs/qwen05b-sql-lora"
+  logs_dir: "runs/qwen05b-sql-lora/logs"
+
+model:
+  base_model_id: "Qwen/Qwen2.5-0.5B"
+  trust_remote_code: false
+  torch_dtype: "bfloat16"   
+
+dataset:
+  hf_dataset: "b-mc2/sql-create-context"
+  fallback_df_dataset: "gretelai/synthetic_text_to_sql"
+  max_seq_len : 512
+  train_size: 8000
+  val_size: 400
+  test_size: 800
+  dedup_on: ["question", "context"]
+  min_sql_validity_check: true      # drop rows whose target SQL fails to parse
+  rescale_split : false. #whether we neeed to rescale the datasplit size here for total_length<len(raw)
+  prompt_template: |
+    ### Instruction:
+    Given the database schema, write a SQL query to answer the question.
+
+    ### Schema:
+    {context}
+
+    ### Question:
+    {question}
+
+    ### SQL:
+    {answer}
