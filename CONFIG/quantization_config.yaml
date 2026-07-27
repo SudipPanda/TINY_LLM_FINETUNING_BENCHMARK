@@ -1,0 +1,50 @@
+# === TinyForge: Quantization Configuration ===
+
+paths:
+  merged_fp32_model_dir: "runs/qwen05b-sql-lora/merged"   # base + LoRA merged checkpoint
+  output_root: "runs/quantized"
+
+fp16:
+  output_dir: "runs/quantized/fp16"
+  torch_dtype: "float16"
+
+int8:
+  output_dir: "runs/quantized/int8"
+  load_in_8bit: true
+  llm_int8_threshold: 6.0            # outlier threshold for mixed-precision decomposition
+  llm_int8_has_fp16_weight: false
+
+awq:
+  output_dir: "runs/quantized/awq"
+  w_bit: 4
+  q_group_size: 128
+  zero_point: true
+  calibration:
+    dataset_source: "train_split"    # reuse the same SQL-instruction training distribution
+    num_calibration_samples: 128
+    max_calib_seq_len: 512
+
+gptq:
+  output_dir: "runs/quantized/gptq"
+  bits: 4
+  group_size: 128
+  desc_act: true                     # activation-order for better small-model accuracy
+  damp_percent: 0.01
+  calibration:
+    dataset_source: "train_split"
+    num_calibration_samples: 128
+    max_calib_seq_len: 512
+
+sanity_check:
+  prompt: |
+    ### Instruction:
+    Given the database schema, write a SQL query to answer the question.
+
+    ### Schema:
+    CREATE TABLE employees (id INT, name TEXT, department TEXT, salary INT);
+
+    ### Question:
+    List the names of employees in the Engineering department earning more than 100000.
+
+    ### SQL:
+  max_new_tokens: 64

@@ -1,0 +1,45 @@
+# === TinyForge: Deployment & Benchmarking Configuration ===
+
+server:
+  host: "0.0.0.0"
+  default_port: 8000
+  max_new_tokens_default: 128
+
+variants:
+  # variant_name -> {loader kind, path}
+  base_fp32:
+    kind: "hf_transformers"
+    path: "runs/qwen05b-sql-lora/merged"
+    dtype: "float32"
+  # fp16:
+  #   kind: "hf_transformers"
+  #   path: "runs/quantized/fp16"
+  #   dtype: "float16"
+  int8:
+    kind: "bitsandbytes"
+    path: "runs/quantized/int8"
+  awq:
+    kind: "autoawq"
+    path: "runs/quantized/awq"
+  gptq:
+    kind: "autogptq"
+    path: "runs/quantized/gptq"
+
+benchmark:
+  num_warmup_requests: 3            # discarded from timing to avoid cold-start skew
+  num_timed_requests: 50
+  concurrency_levels: [1, 4, 8]
+  fixed_prompts_file: "results/tables/benchmark_prompts.json"
+  output_csv: "results/tables/benchmark_results.csv"
+  output_charts_dir: "results/charts"
+  metrics:
+    - "model_size_mb"
+    - "peak_gpu_memory_mb"
+    - "peak_cpu_memory_mb"
+    - "load_time_sec"
+    - "ttft_ms"
+    - "tokens_per_sec"
+    - "avg_latency_ms"
+    - "throughput_req_per_sec"
+    - "sql_validity_rate"
+    - "normalized_exact_match_rate"

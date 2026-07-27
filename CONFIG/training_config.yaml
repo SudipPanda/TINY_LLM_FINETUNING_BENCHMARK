@@ -31,3 +31,7 @@ dataset:
 
     ### SQL:
     {answer}
+
+evaluation:
+  total_test_sample: 20
+  
