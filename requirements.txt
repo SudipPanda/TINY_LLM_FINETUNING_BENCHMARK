@@ -9,7 +9,7 @@ trl>=0.9.6
 # Quantization backends
 bitsandbytes>=0.43.1
 autoawq>=0.2.5        # requires CUDA; skip on CPU-only environments
-auto-gptq>=0.7.1       # requires CUDA; skip on CPU-only environments
+#auto-gptq>=0.7.1       # requires CUDA; skip on CPU-only environments
 
 # Serving
 fastapi>=0.111.0

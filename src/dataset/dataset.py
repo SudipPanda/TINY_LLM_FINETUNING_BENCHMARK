@@ -2,6 +2,7 @@ from datasets import load_dataset , Dataset
 import json
 from src.utils.config import load_config
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 """Try to check the sql is valid or not"""

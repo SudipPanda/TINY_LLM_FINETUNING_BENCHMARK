@@ -14,6 +14,9 @@ import time
 logger = logging.getLogger(__name__)
 _state:dict = {}
 
+CONFIG_PATH = os.environ.get("DEPLOYMENT_CONFIG", "configs/deployment_config.yaml")
+VARIANT = os.environ.get("MODEL_VARIANT", "base_fp32")
+
 def _load_varient(cfg , varient_name):
     varients = cfg.variants
     if varient_name not in varients:
@@ -64,9 +67,26 @@ def _load_varient(cfg , varient_name):
 
 @asynccontextmanager
 async def lifespam(app:FastAPI):
-    pass
+    cfg = load_config("/workspaces/TINY_LLM_FINETUNING_BENCHMARK/CONFIG/training_config.yaml")
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
 
-app = FastAPI(title="TinyForge Inference Server", lifespan=lifespan)
+    load_start = time.perf_counter()
+    model , tokenizer = _load_varient(cfg , VARIANT)
+
+    load_time = time.perf_counter()-load_start
+    logger.info("Variant '%s' loaded in %.2fs", VARIANT, load_time)
+
+    _state["cfg"] = cfg
+    _state["model"] = model
+    _state["tokenizer"] = tokenizer
+    _state["variant"] = VARIANT
+    _state["load_time"] = load_time
+    yield
+    _state.clear()
+    
+
+app = FastAPI(title="TinyForge Inference Server", lifespan=lifespam)
 
 
 """Model Rewuest and Response format here"""
@@ -89,7 +109,7 @@ class GenerateResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "variant": _state.get("variant"), "load_time_sec": _state.get("load_time_sec")}
+    return {"status": "ok", "variant": _state.get("variant"), "load_time_sec": _state.get("load_time")}
 
 
 @app.post("/generate", response_model=GenerateResponse)
