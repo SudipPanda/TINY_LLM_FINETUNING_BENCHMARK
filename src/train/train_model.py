@@ -1,13 +1,26 @@
+import sys
 import logging
+import os
 from pathlib import Path
-
+from dotenv import load_dotenv
 import torch
-from dataset import load_dataset
+from datasets import load_dataset
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 from trl import SFTConfig, SFTTrainer
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from src.utils.config import load_config
+
+"""Loading teh environment variable here"""
+env_path = Path(__file__).resolve().parents[2] / ".env"  # <-- change this
+load_dotenv(dotenv_path=env_path, override=False)
+hf_token = os.getenv("HF_TOKEN")
+os.environ['HF_TOKEN'] = hf_token
+
 
 logger =logging.getLogger(__name__)
 
@@ -16,7 +29,7 @@ logger =logging.getLogger(__name__)
 def load_process_split(data_dir: str = "data/processed"):
     files = {
         "train": str(Path(data_dir) / "train.jsonl"),
-        "validation": str(Path(data_dir) / "validation.jsonl"),
+        "validation": str(Path(data_dir) / "valid.jsonl"),
     }
     return load_dataset("json", data_files=files)
 
@@ -30,8 +43,8 @@ def build_model_tokenizer(cfg):
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         model_cfg.base_model_id ,
-        torch_dtype=dtype,
-        trust_remote_code=model_cfg.get("trust_remote_code", False),
+        torch_dtype=model_cfg.torch_dtype,
+        trust_remote_code=model_cfg.trust_remote_code,
         )
     return tokenizer , model
 
@@ -74,7 +87,7 @@ def build_sft_config(cfg) -> SFTConfig:
         save_steps=t.save_steps,
         save_total_limit=t.save_total_limit,
         report_to=t.report_to,
-        max_length=cfg.dataset.max_seq_length,
+        max_length=cfg.dataset.max_seq_len,
         dataset_text_field="text",
         seed=cfg.project.seed,
     )

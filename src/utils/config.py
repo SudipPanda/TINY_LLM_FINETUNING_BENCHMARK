@@ -19,8 +19,8 @@ class Config(dict):
 def load_config(path:str|Path)->Config:
     """Load the yaml file here"""
     path = Path(path)
-    if not path_exist:
-        raise FileNotFoundError(f"config file not fine in {path}")
+    if not path.exists():
+        raise FileNotFoundError(f"config file not found in {path}")
     
     with open(path , "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)

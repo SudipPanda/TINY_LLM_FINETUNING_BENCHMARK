@@ -1,8 +1,14 @@
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from datasets import load_dataset , Dataset
 import json
 from src.utils.config import load_config
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 """Try to check the sql is valid or not"""
@@ -38,21 +44,26 @@ def _load_raw_dataset(cfg)->Dataset:
 
 """NORMALIZED THE DATASET HERE"""
 def _normalized_dataset(raw):
-    col = set(col.column_names)
+    if isinstance(raw, dict):
+        return {k: _normalized_dataset(v) for k, v in raw.items()}
+
+    cols = set(raw.column_names)
     if {"question", "context", "answer"}.issubset(cols):
         return raw
-    
-    
+
     rename_map = {
         "sql_prompt": "question",
         "sql_context": "context",
-        "sql": "answer",}
-    
-    applicable = {k:v for k , v in rename_map.items() if k in col}
+        "sql": "answer",
+        "response": "answer",
+    }
+
+    applicable = {k: v for k, v in rename_map.items() if k in cols}
     if applicable:
-        raw.rename_columns(applicable)
-    
-    missing = {"question", "context", "answer"} - set(raw.column_names)
+        raw = raw.rename_columns(applicable)
+
+    cols = set(raw.column_names)
+    missing = {"question", "context", "answer"} - cols
     if missing:
         raise ValueError(f"Dataset is missing required columns after normalization: {missing}")
 
@@ -69,13 +80,15 @@ def _filter_valid_sql(raw:Dataset)->Dataset:
 
 """APply chat template here for each row"""
 def _apply_chat_template(row , chat_template):
-    row['text'] = template.format(
+    row['text'] = chat_template.format(
         context=row["context"], question=row["question"], answer=row["answer"]
     )
     return row
 
 """Filter by length here"""
-def _filter_by_length(raw , tokenizer , seq_len):
+def _filter_by_length(raw, tokenizer, seq_len):
+    max_len = seq_len
+
     def _ok(row):
         return len(tokenizer(row["text"], truncation=False)["input_ids"]) <= max_len
 
@@ -83,47 +96,63 @@ def _filter_by_length(raw , tokenizer , seq_len):
     logger.info("Length filter (<=%d tokens): keeping %d / %d rows", max_len, len(kept), len(raw))
     return kept
 
+def _dedup(raw: Dataset, keys: list[str]) -> Dataset:
+    seen = set()
+    keep_indices = []
+    for i, row in enumerate(raw):
+        key = tuple(row[k] for k in keys)
+        if key in seen:
+            continue
+        seen.add(key)
+        keep_indices.append(i)
+    logger.info("Deduplication: %d -> %d rows", len(raw), len(keep_indices))
+    return raw.select(keep_indices)
+
 
 """PREPARING THE DATASET HERE"""
 def prepare(cfg):
     ds_cfg = cfg.dataset
     raw = _load_raw_dataset(cfg)
     raw = _normalized_dataset(raw)
+
+    if isinstance(raw, dict):
+        raw = raw.get("train", raw[next(iter(raw))])
+
     raw = _dedup(raw, ds_cfg.dedup_on)
 
     if ds_cfg['min_sql_validity_check']:
         raw = _filter_valid_sql(raw)
 
     """applying the chat prompt template here"""
-    raw = raw.map(lambda r : _apply_chat_template(r , ds_cfg.prompt_template))
+    raw = raw.map(lambda r: _apply_chat_template(r, ds_cfg.prompt_template))
 
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.base_model_id)
 
-    raw = _filter_by_length(raw , tokenizer , ds_cfg.max_seq_len)
-    raw = raw.shuffle(seed = cfg.project.seed)
+    raw = _filter_by_length(raw, tokenizer, ds_cfg.max_seq_len)
+    raw = raw.shuffle(seed=cfg.project.seed)
 
-    n_train , n_test, n_valid = ds_cfg.train_size , ds_cfg.test_size, ds_cfg.val_size
-    
-    total_length = n_train+n_test+n_valid
+    n_train, n_test, n_val = ds_cfg.train_size, ds_cfg.test_size, ds_cfg.val_size
 
-    if total_length<len(raw):
+    total_length = n_train + n_test + n_val
+
+    if total_length < len(raw):
         logger.warning("the main dataset length is way bigger than size needed here")
 
         """Rescaling the size of train and test and valid dataset here"""
         if ds_cfg.rescale_split:
-            scale = len(raw)/total_length
+            scale = len(raw) / total_length
             n_train, n_val, n_test = int(n_train * scale), int(n_val * scale), int(n_test * scale)
 
     train = raw.select(range(0, n_train))
     val = raw.select(range(n_train, n_train + n_val))
     test = raw.select(range(n_train + n_val, n_train + n_val + n_test))
-    
+
     logger.info("Final split sizes -> train: %d, val: %d, test: %d", len(train), len(val), len(test))
     return {
-        'train':train , 
-        "test":test , 
-        "valid":val
+        'train': train,
+        'test': test,
+        'valid': val,
     }
 
 
@@ -145,7 +174,7 @@ def save_splits(splits :dict[str , Dataset] , out_dir: str = "data/processed"):
 
 def main():
     cfg = load_config("/workspaces/TINY_LLM_FINETUNING_BENCHMARK/CONFIG/training_config.yaml")
-    splits = prepare(splits)
+    splits = prepare(cfg)
     save_splits(splits)
 
 

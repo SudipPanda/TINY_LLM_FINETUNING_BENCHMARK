@@ -1,8 +1,13 @@
-from datasets import load_dataset
+import sys
 from pathlib import Path
+from datasets import load_dataset
 from src.utils.config import load_config
 import logging
 import json
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 logger = logging.getLogger(__name__)
