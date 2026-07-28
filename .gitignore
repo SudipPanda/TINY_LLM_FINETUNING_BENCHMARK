@@ -4,7 +4,6 @@ venv/
 env/
 myenv/
 .env/
-data/
 # Python cache
 __pycache__/
 *.py[cod]
