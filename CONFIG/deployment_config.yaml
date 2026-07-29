@@ -9,7 +9,7 @@ variants:
   # variant_name -> {loader kind, path}
   base_fp32:
     kind: "hf_transformers"
-    path: "runs/qwen05b-sql-lora/merged"
+    path: "Pidus/qwen05b-lora"
     dtype: "float32"
   # fp16:
   #   kind: "hf_transformers"
@@ -17,13 +17,13 @@ variants:
   #   dtype: "float16"
   int8:
     kind: "bitsandbytes"
-    path: "runs/quantized/int8"
+    path: "Pidus/qwen05b-lora"
   awq:
     kind: "autoawq"
-    path: "runs/quantized/awq"
+    path: "Pidus/qwen05b-lora"
   gptq:
     kind: "autogptq"
-    path: "runs/quantized/gptq"
+    path: "Pidus/qwen05b-lora"
 
 benchmark:
   num_warmup_requests: 3            # discarded from timing to avoid cold-start skew

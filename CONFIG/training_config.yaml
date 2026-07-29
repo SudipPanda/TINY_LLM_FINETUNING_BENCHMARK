@@ -8,6 +8,7 @@ model:
   base_model_id: "Qwen/Qwen2.5-0.5B"
   trust_remote_code: false
   torch_dtype: "float16"   
+  hf_repo : "Pidus/qwen05b-lora"
 
 dataset:
   hf_dataset: "b-mc2/sql-create-context"

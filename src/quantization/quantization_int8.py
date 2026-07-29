@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def quantize_int8(cfg):
     src_dir = cfg.paths.merged_fp32_model_dir
-    out_dir = cfg.int8.output_dir
+    out_dir = ROOT / cfg.int8.output_dir
     out_dir.mkdir(parents = True , exist_ok=True)
 
     bnb_config = BitsAndBytesConfig(
@@ -46,7 +46,7 @@ def quantize_int8(cfg):
     logger.info("INT8 manifest + tokenizer saved to %s", out_dir)
 
 def main():
-    cfg = load_config("/workspaces/TINY_LLM_FINETUNING_BENCHMARK/CONFIG/training_config.yaml")
+    cfg = load_config(ROOT / "TINY_LLM_FINETUNING_BENCHMARK/CONFIG/quantization_config.yaml")
     quantize_int8(cfg)
 
 if __name__ == "__main__":
