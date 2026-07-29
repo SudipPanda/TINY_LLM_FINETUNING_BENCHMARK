@@ -1,7 +1,7 @@
 # === TinyForge: Quantization Configuration ===
 
 paths:
-  merged_fp32_model_dir: "runs/qwen05b-sql-lora/merged"   # base + LoRA merged checkpoint
+  merged_fp32_model_dir: "Pidus/qwen05b-lora"   # base + LoRA merged checkpoint
   output_root: "runs/quantized"
 
 fp16:

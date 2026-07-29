@@ -1,0 +1,48 @@
+
+eval:
+  test_split_path: "data/processed/valid.jsonl"
+  num_samples: 50               # keep small — every sample costs one judge API call per stage
+  max_new_tokens: 128
+  seed: 42
+
+
+output:
+  results_json: "results/tables/quality_benchmark_results.json"
+  results_csv: "results/tables/quality_benchmark_results.csv"
+  charts_dir: "results/charts"
+  report_md: "reports/QUALITY_BENCHMARK_REPORT.md"
+
+
+stages:
+  # Ordering here also controls chart/report ordering (pipeline progression).
+  pre_finetune:
+    kind: "hf_transformers"
+    path: "Qwen/Qwen2.5-0.5B"        # raw base model, before any fine-tuning
+    dtype: "float32"
+  fine_tuned:
+    kind: "hf_transformers"
+    path: "Pidus/qwen05b-lora"   # LoRA-merged checkpoint from Phase 3
+    dtype: "float32"
+  fp16:
+    kind: "hf_transformers"
+    path: "runs/quantized/fp16"
+    dtype: "float16"
+  int8:
+    kind: "bitsandbytes"
+    path: "runs/quantized/int8"
+  awq:
+    kind: "autoawq"
+    path: "runs/quantized/awq"
+  gptq:
+    kind: "autogptq"
+    path: "runs/quantized/gptq"
+
+
+pipeline_order: ["pre_finetune", "fine_tuned", "fp16", "int8", "awq", "gptq"]
+
+
+output:
+  results_json: "results/tables/quality_benchmark_results.json"
+  results_csv: "results/tables/quality_benchmark_results.csv"
+  charts_dir: "results/charts"
+  report_md: "reports/QUALITY_BENCHMARK_REPORT.md"
