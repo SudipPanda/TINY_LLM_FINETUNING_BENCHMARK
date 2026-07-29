@@ -124,7 +124,7 @@ def train(cfg):
     )
 
     logger.info("starting the training process here....")
-    train_result = trainer.train()
+    train_result = trainer.train(resume_from_checkpoint= ROOT / "runs/qwen05b-sql-lora/checkpoint-200")
 
     accelerator.wait_for_everyone()
     
