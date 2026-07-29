@@ -4,10 +4,12 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import torch
+import json
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 from trl import SFTConfig, SFTTrainer
+from accelerate import Accelerator
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -16,20 +18,22 @@ if str(ROOT) not in sys.path:
 from src.utils.config import load_config
 
 """Loading teh environment variable here"""
-env_path = Path(__file__).resolve().parents[2] / ".env"  # <-- change this
-load_dotenv(dotenv_path=env_path, override=False)
+env_path = ROOT / ".env"  # <-- change this
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=False)
 hf_token = os.getenv("HF_TOKEN")
-os.environ['HF_TOKEN'] = hf_token
+if hf_token:
+    os.environ['HF_TOKEN'] = hf_token
 
 
 logger =logging.getLogger(__name__)
 
 
 """Load the dataset split here"""
-def load_process_split(data_dir: str = "data/processed"):
+def load_process_split(data_dir: Path = ROOT / "data"/"processed"):
     files = {
-        "train": str(Path(data_dir) / "train.jsonl"),
-        "validation": str(Path(data_dir) / "valid.jsonl"),
+        "train": str(data_dir / "train.jsonl"),
+        "validation": str(data_dir / "valid.jsonl"),
     }
     return load_dataset("json", data_files=files)
 
@@ -41,9 +45,15 @@ def build_model_tokenizer(cfg):
     tokenizer = AutoTokenizer.from_pretrained(model_cfg.base_model_id)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+
+    dtype_map = {
+    "float16": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "float32": torch.float32,
+      }
     model = AutoModelForCausalLM.from_pretrained(
         model_cfg.base_model_id ,
-        torch_dtype=model_cfg.torch_dtype,
+        dtype=dtype_map.get(model_cfg.torch_dtype , torch.float16),
         trust_remote_code=model_cfg.trust_remote_code,
         )
     return tokenizer , model
@@ -95,7 +105,9 @@ def build_sft_config(cfg) -> SFTConfig:
 
 """Train the model here"""
 def train(cfg):
+    accelerator = Accelerator()
     set_seed(cfg.project.seed)
+
     dataset = load_process_split()
     tokenizer , model = build_model_tokenizer(cfg)
     lora_config = build_lora_config(cfg)
@@ -113,28 +125,39 @@ def train(cfg):
 
     logger.info("starting the training process here....")
     train_result = trainer.train()
-    trainer.save_model(cfg.project.output_dir)
 
-    """saving all the result here"""
-    metrics_path = Path(cfg.project.output_dir) / "train_metrics.json"
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(metrics_path, "w", encoding="utf-8") as f:
-        json.dump(train_result.metrics, f, indent=2)
-    logger.info("Training complete. Metrics written to %s", metrics_path)
+    accelerator.wait_for_everyone()
+    
+    if accelerator.is_main_process:
+        trainer.save_model(cfg.project.output_dir)
 
-    # Merge LoRA adapter into the base model for a deployable, quantization-ready checkpoint.
-    merged_dir = Path(cfg.project.output_dir) / "merged"
+    if accelerator.is_main_process:
+        """saving all the result here"""
+        metrics_path = Path(cfg.project.output_dir) / "train_metrics.json"
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump(train_result.metrics, f, indent=2)
+        logger.info("Training complete. Metrics written to %s", metrics_path)
 
-    """merge and unload the model ith peft parameter here"""
-    merged_model = model.merge_and_unload()
-    merged_model.save_pretrained(merged_dir)
-    tokenizer.save_pretrained(merged_dir)
-    logger.info("Merged fine-tuned model saved to %s", merged_dir)
+
+    accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        # Merge LoRA adapter into the base model for a deployable, quantization-ready checkpoint.
+        merged_dir = Path(cfg.project.output_dir) / "merged"
+
+        """merge and unload the model with peft parameter here"""
+        del trainer
+        torch.cuda.empty_cache()
+        merged_model = model.merge_and_unload()
+        merged_model.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
+        logger.info("Merged fine-tuned model saved to %s", merged_dir)
 
 
 """The main function here"""
 def main():
-    cfg = load_config("/workspaces/TINY_LLM_FINETUNING_BENCHMARK/CONFIG/training_config.yaml")
+    config_path = ROOT / "CONFIG" / "training_config.yaml"
+    cfg = load_config(config_path)
     train(cfg)
 
 if __name__ == "__main__":
