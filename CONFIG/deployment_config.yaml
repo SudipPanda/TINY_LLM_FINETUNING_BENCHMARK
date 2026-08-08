@@ -25,6 +25,13 @@ variants:
     kind: "autogptq"
     path: "Pidus/qwen05b-lora"
 
+engine:
+  gpu_memory_utilization: 0.85     # fraction of GPU memory vLLM is allowed to pre-allocate for KV cache
+  max_model_len: 1024              # must cover prompt + generation length used elsewhere in the project
+  tensor_parallel_size: 1          # single GPU; raise only if sharding across multiple GPUs
+  enforce_eager: false             # true disables CUDA graph capture (useful for debugging OOM/shape errors)
+  swap_space_gb: 4 
+
 benchmark:
   num_warmup_requests: 3            # discarded from timing to avoid cold-start skew
   num_timed_requests: 50

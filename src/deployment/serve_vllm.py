@@ -6,6 +6,7 @@ import logging
 from fastapi import FastAPI
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,6 +28,7 @@ def _build_engine(cfg , varient):
     
     varient_cfg = varients[varient]
     engine_cfg = cfg.engine
+    
 
     llm_kwargs = dict(
         model=variant_cfg["path"],
